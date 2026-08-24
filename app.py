@@ -5,7 +5,6 @@ import torch
 import torch.nn as nn
 
 from PIL import Image
-
 from torchvision import transforms
 from torchvision.models import mobilenet_v3_small
 
@@ -17,7 +16,6 @@ from torchvision.models import mobilenet_v3_small
 app = Flask(__name__)
 
 UPLOAD_FOLDER = "uploads"
-
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
@@ -29,10 +27,13 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 DEVICE = torch.device("cpu")
 
+# IMPORTANT :
+# Render Free possède des ressources CPU limitées.
+torch.set_num_threads(1)
+torch.set_num_interop_threads(1)
+
 MODEL_PATH = "mobilenet_alzheimer.pth"
 
-
-# Les classes sont celles détectées par ImageFolder
 CLASS_NAMES = [
     "MildDemented",
     "ModerateDemented",
@@ -60,15 +61,13 @@ transform = transforms.Compose([
 # ============================================================
 
 print("=" * 60)
-print("CHARGEMENT DE MOBILENETV3-SMALL")
+print("NEURODETECT - LOADING MODEL")
 print("=" * 60)
 
 print("Device :", DEVICE)
 print("Model  :", MODEL_PATH)
 
-model = mobilenet_v3_small(
-    weights=None
-)
+model = mobilenet_v3_small(weights=None)
 
 number_features = model.classifier[-1].in_features
 
@@ -77,14 +76,11 @@ model.classifier[-1] = nn.Linear(
     4
 )
 
-
-# Charger les poids entraînés
 checkpoint = torch.load(
     MODEL_PATH,
     map_location=DEVICE
 )
 
-# Notre fichier contient model_state_dict
 model.load_state_dict(
     checkpoint["model_state_dict"]
 )
@@ -93,39 +89,57 @@ model = model.to(DEVICE)
 
 model.eval()
 
-print("✓ Modèle chargé avec succès")
-print("✓ 4 classes Alzheimer")
-print()
+print("✓ Model loaded successfully")
+print("✓ 4 Alzheimer classes")
+print("✓ CPU threads:", torch.get_num_threads())
+print("=" * 60)
 
 
 # ============================================================
-# FONCTION DE PRÉDICTION
+# PRÉDICTION
 # ============================================================
 
 def predict_image(image_path):
 
+    print("=== ANALYSIS STARTED ===")
+
+    # --------------------------------------------------------
+    # Load image
+    # --------------------------------------------------------
+
     image = Image.open(image_path).convert("RGB")
 
-    image_tensor = transform(image)
+    print("✓ Image loaded")
 
-    # Ajouter la dimension batch
-    image_tensor = image_tensor.unsqueeze(0)
+    # --------------------------------------------------------
+    # Transform
+    # --------------------------------------------------------
 
-    image_tensor = image_tensor.to(DEVICE)
+    image_tensor = transform(image).unsqueeze(0)
 
-    # Pas de calcul de gradient
-    with torch.no_grad():
+    print("✓ Image transformed")
+
+    # --------------------------------------------------------
+    # CPU inference
+    # --------------------------------------------------------
+
+    with torch.inference_mode():
+
+        print(">>> MobileNet inference started")
 
         outputs = model(image_tensor)
+
+        print(">>> MobileNet inference finished")
 
         probabilities = torch.softmax(
             outputs,
             dim=1
-        )
+        )[0]
 
-    probabilities = probabilities[0]
+    # --------------------------------------------------------
+    # Prediction
+    # --------------------------------------------------------
 
-    # Classe avec la probabilité maximale
     predicted_index = torch.argmax(
         probabilities
     ).item()
@@ -139,7 +153,10 @@ def predict_image(image_path):
         * 100
     )
 
-    # Toutes les probabilités
+    # --------------------------------------------------------
+    # All probabilities
+    # --------------------------------------------------------
+
     results = {}
 
     for i, class_name in enumerate(CLASS_NAMES):
@@ -149,6 +166,14 @@ def predict_image(image_path):
             2
         )
 
+    print(
+        "Prediction:",
+        predicted_class,
+        f"({predicted_probability:.2f}%)"
+    )
+
+    print("=== ANALYSIS FINISHED ===")
+
     return (
         predicted_class,
         round(predicted_probability, 2),
@@ -157,7 +182,7 @@ def predict_image(image_path):
 
 
 # ============================================================
-# PAGE PRINCIPALE
+# HOME
 # ============================================================
 
 @app.route("/")
@@ -169,50 +194,50 @@ def home():
 
 
 # ============================================================
-# ANALYSE
+# ANALYZE
 # ============================================================
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
 
-    # --------------------------------------------------------
-    # Vérifier l'image
-    # --------------------------------------------------------
-
-    if "image" not in request.files:
-
-        return jsonify({
-            "success": False,
-            "error": "No image uploaded."
-        })
-
-    file = request.files["image"]
-
-    if file.filename == "":
-
-        return jsonify({
-            "success": False,
-            "error": "No image selected."
-        })
-
-
-    # --------------------------------------------------------
-    # Sauvegarde
-    # --------------------------------------------------------
-
-    filepath = os.path.join(
-        app.config["UPLOAD_FOLDER"],
-        file.filename
-    )
-
-    file.save(filepath)
-
-
-    # --------------------------------------------------------
-    # VRAIE PRÉDICTION
-    # --------------------------------------------------------
-
     try:
+
+        # ----------------------------------------------------
+        # Check image
+        # ----------------------------------------------------
+
+        if "image" not in request.files:
+
+            return jsonify({
+                "success": False,
+                "error": "No image uploaded."
+            }), 400
+
+        file = request.files["image"]
+
+        if file.filename == "":
+
+            return jsonify({
+                "success": False,
+                "error": "No image selected."
+            }), 400
+
+        # ----------------------------------------------------
+        # Save image
+        # ----------------------------------------------------
+
+        filepath = os.path.join(
+            app.config["UPLOAD_FOLDER"],
+            file.filename
+        )
+
+        file.save(filepath)
+
+        print("✓ Image saved:", filepath)
+
+        # ----------------------------------------------------
+        # Prediction
+        # ----------------------------------------------------
 
         (
             predicted_class,
@@ -220,102 +245,82 @@ def analyze():
             probabilities
         ) = predict_image(filepath)
 
-    except Exception as e:
+        # ----------------------------------------------------
+        # Explanation
+        # ----------------------------------------------------
 
-        print("ERROR :", e)
+        explanation = (
+            "The MobileNetV3-Small model analyzed the "
+            "uploaded image and classified it as "
+            f"{predicted_class} with an estimated "
+            f"confidence of {predicted_probability:.2f}%. "
+            "This result is experimental and is not "
+            "intended for medical diagnosis."
+        )
+
+        # ----------------------------------------------------
+        # Response
+        # ----------------------------------------------------
 
         return jsonify({
-            "success": False,
-            "error": str(e)
-        })
 
+            "success": True,
 
-    # --------------------------------------------------------
-    # Pour le moment :
-    #
-    # Seul MobileNet est réellement entraîné.
-    #
-    # LightAlzNet et Model 3 seront ajoutés plus tard.
-    # --------------------------------------------------------
+            "prediction": {
+                "class": predicted_class,
+                "confidence": predicted_probability
+            },
 
-    mobilenet_score = predicted_probability
+            "models": {
 
+                "MobileNetV3-Small":
+                    predicted_probability,
 
-    # --------------------------------------------------------
-    # Explication temporaire
-    # --------------------------------------------------------
+                "LightAlzNet":
+                    None,
 
-    explanation = (
-        "The MobileNetV3-Small model analyzed the "
-        "uploaded image and classified it as "
-        f"{predicted_class} with an estimated "
-        f"confidence of {predicted_probability:.2f}%. "
-        "This result is experimental and is not "
-        "intended for medical diagnosis."
-    )
+                "Model 3":
+                    None
+            },
 
+            "probabilities":
+                probabilities,
 
-    # --------------------------------------------------------
-    # Réponse JSON
-    # --------------------------------------------------------
-
-    return jsonify({
-
-        "success": True,
-
-        "prediction": {
-
-            "class":
-                predicted_class,
-
-            "confidence":
-                predicted_probability
-        },
-
-        "models": {
-
-            "MobileNetV3-Small":
-                round(mobilenet_score, 2),
-
-            "LightAlzNet":
+            "mmse":
                 None,
 
-            "Model 3":
-                None
-        },
+            "mmse_percentage":
+                None,
 
-        "probabilities":
-            probabilities,
+            "explanation":
+                explanation
+        })
 
-        # Pour l'instant on ne calcule PAS
-        # un vrai MMSE à partir de cette prédiction.
-        "mmse":
-            None,
+    except Exception as e:
 
-        "mmse_percentage":
-            None,
+        print("=" * 60)
+        print("ANALYSIS ERROR")
+        print("=" * 60)
+        print(repr(e))
+        print("=" * 60)
 
-        "explanation":
-            explanation
-    })
+        return jsonify({
+
+            "success": False,
+
+            "error":
+                "Analysis failed: " + str(e)
+
+        }), 500
 
 
 # ============================================================
-# START SERVER
+# LOCAL SERVER
 # ============================================================
 
 if __name__ == "__main__":
 
-    print("=" * 60)
     print("NEURO AI ANALYSIS - PFE PROTOTYPE")
-    print("=" * 60)
-
-    print()
-    print("Server starting...")
-    print()
-    print("Open your browser at:")
-    print("http://127.0.0.1:5000")
-    print()
 
     app.run(
         host="127.0.0.1",
