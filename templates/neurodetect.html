@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Neuro AI Analysis</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+
+            font-family:
+                Arial,
+                Helvetica,
+                sans-serif;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #07111f,
+                    #0d1b2a
+                );
+
+            color: white;
+
+            min-height: 100vh;
+
+            padding: 40px 20px;
+        }
+
+        .container {
+
+            max-width: 950px;
+
+            margin: auto;
+        }
+
+        .header {
+
+            text-align: center;
+
+            margin-bottom: 35px;
+        }
+
+        .header h1 {
+
+            font-size: 38px;
+
+            margin-bottom: 10px;
+        }
+
+        .header p {
+
+            color: #9fb3c8;
+
+            font-size: 16px;
+        }
+
+        .card {
+
+            background:
+                rgba(20, 35, 55, 0.9);
+
+            border:
+                1px solid rgba(255,255,255,0.08);
+
+            border-radius: 18px;
+
+            padding: 30px;
+
+            margin-bottom: 25px;
+
+            box-shadow:
+                0 20px 50px
+                rgba(0,0,0,0.25);
+        }
+
+        .upload-area {
+
+            border:
+                2px dashed #3d6f9f;
+
+            border-radius: 15px;
+
+            padding: 45px 20px;
+
+            text-align: center;
+
+            cursor: pointer;
+
+            transition: 0.3s;
+        }
+
+        .upload-area:hover {
+
+            border-color: #61dafb;
+
+            background:
+                rgba(97,218,251,0.05);
+        }
+
+        .upload-icon {
+
+            font-size: 50px;
+
+            margin-bottom: 15px;
+        }
+
+        input[type="file"] {
+
+            display: none;
+        }
+
+        .file-name {
+
+            margin-top: 15px;
+
+            color: #61dafb;
+        }
+
+        .preview {
+
+            max-width: 350px;
+
+            max-height: 250px;
+
+            margin: 20px auto;
+
+            display: none;
+
+            border-radius: 12px;
+
+            border: 1px solid #31516d;
+        }
+
+        .analyze-btn {
+
+            display: block;
+
+            width: 100%;
+
+            margin-top: 25px;
+
+            padding: 15px;
+
+            border: none;
+
+            border-radius: 10px;
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #2673c7,
+                    #3aa7d9
+                );
+
+            color: white;
+
+            font-size: 17px;
+
+            font-weight: bold;
+
+            cursor: pointer;
+
+            transition: 0.3s;
+        }
+
+        .analyze-btn:hover {
+
+            transform: translateY(-2px);
+
+            box-shadow:
+                0 10px 25px
+                rgba(38,115,199,0.3);
+        }
+
+        .analyze-btn:disabled {
+
+            opacity: 0.5;
+
+            cursor: not-allowed;
+        }
+
+        .section-title {
+
+            font-size: 20px;
+
+            margin-bottom: 25px;
+
+            color: #e7f4ff;
+        }
+
+        .model {
+
+            margin-bottom: 22px;
+        }
+
+        .model-header {
+
+            display: flex;
+
+            justify-content: space-between;
+
+            margin-bottom: 8px;
+        }
+
+        .model-name {
+
+            font-weight: bold;
+        }
+
+        .percentage {
+
+            color: #61dafb;
+
+            font-weight: bold;
+        }
+
+        .progress {
+
+            width: 100%;
+
+            height: 12px;
+
+            background: #15293c;
+
+            border-radius: 20px;
+
+            overflow: hidden;
+        }
+
+        .progress-bar {
+
+            height: 100%;
+
+            width: 0%;
+
+            border-radius: 20px;
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #2673c7,
+                    #61dafb
+                );
+
+            transition:
+                width 1s ease;
+        }
+
+        .mmse {
+
+            text-align: center;
+
+            padding: 25px;
+        }
+
+        .mmse-title {
+
+            font-size: 20px;
+
+            margin-bottom: 20px;
+        }
+
+        .mmse-score {
+
+            font-size: 64px;
+
+            font-weight: bold;
+
+            color: #61dafb;
+        }
+
+        .mmse-max {
+
+            font-size: 22px;
+
+            color: #9fb3c8;
+        }
+
+        .mmse-percent {
+
+            font-size: 20px;
+
+            margin-top: 10px;
+
+            color: #b8d9ef;
+        }
+
+        .explanation {
+
+            background:
+                #0b1928;
+
+            border-left:
+                4px solid #61dafb;
+
+            padding: 20px;
+
+            border-radius: 8px;
+
+            line-height: 1.7;
+
+            color: #cbd9e6;
+        }
+
+        .loading {
+
+            display: none;
+
+            text-align: center;
+
+            margin-top: 20px;
+
+            color: #61dafb;
+        }
+
+        .results {
+
+            display: none;
+        }
+
+        .warning {
+
+            margin-top: 20px;
+
+            padding: 12px;
+
+            border-radius: 8px;
+
+            background:
+                rgba(255,193,7,0.08);
+
+            color: #e8c86a;
+
+            font-size: 13px;
+
+            line-height: 1.5;
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+<div class="container">
+
+
+    <div class="header">
+
+        <h1>🧠 Neuro AI Analysis</h1>
+
+        <p>
+            AI-assisted neuroimaging analysis
+            — PFE Prototype
+        </p>
+
+    </div>
+
+
+    <!-- UPLOAD -->
+
+    <div class="card">
+
+        <div
+            class="upload-area"
+            onclick="document.getElementById('imageInput').click()"
+        >
+
+            <div class="upload-icon">
+                📤
+            </div>
+
+            <h2>
+                Upload MRI / Medical Image
+            </h2>
+
+            <p style="margin-top:10px;color:#9fb3c8;">
+                Click to select an image
+            </p>
+
+            <input
+                type="file"
+                id="imageInput"
+                accept="image/*"
+            >
+
+            <div
+                class="file-name"
+                id="fileName"
+            ></div>
+
+        </div>
+
+
+        <img
+            id="preview"
+            class="preview"
+        >
+
+
+        <button
+            class="analyze-btn"
+            id="analyzeBtn"
+            disabled
+        >
+
+            ANALYZE IMAGE
+
+        </button>
+
+
+        <div
+            class="loading"
+            id="loading"
+        >
+
+            🧠 AI models are analyzing
+            the image...
+
+        </div>
+
+
+        <div class="warning">
+
+            ⚠️ Research prototype only.
+            The displayed results are experimental
+            and are not intended for medical diagnosis.
+
+        </div>
+
+    </div>
+
+
+
+    <!-- RESULTS -->
+
+    <div
+        class="results"
+        id="results"
+    >
+
+
+        <div class="card">
+
+            <div class="section-title">
+
+                MODEL RESULTS
+
+            </div>
+
+
+            <!-- MobileNet -->
+
+            <div class="model">
+
+                <div class="model-header">
+
+                    <span class="model-name">
+                        MobileNetV3-Small
+                    </span>
+
+                    <span
+                        class="percentage"
+                        id="mobilenetValue"
+                    >
+                        0%
+                    </span>
+
+                </div>
+
+                <div class="progress">
+
+                    <div
+                        class="progress-bar"
+                        id="mobilenetBar"
+                    ></div>
+
+                </div>
+
+            </div>
+
+
+            <!-- LightAlzNet -->
+
+            <div class="model">
+
+                <div class="model-header">
+
+                    <span class="model-name">
+                        LightAlzNet
+                    </span>
+
+                    <span
+                        class="percentage"
+                        id="lightalzValue"
+                    >
+                        0%
+                    </span>
+
+                </div>
+
+                <div class="progress">
+
+                    <div
+                        class="progress-bar"
+                        id="lightalzBar"
+                    ></div>
+
+                </div>
+
+            </div>
+
+
+            <!-- Model 3 -->
+
+            <div class="model">
+
+                <div class="model-header">
+
+                    <span class="model-name">
+                        Model 3
+                    </span>
+
+                    <span
+                        class="percentage"
+                        id="model3Value"
+                    >
+                        0%
+                    </span>
+
+                </div>
+
+                <div class="progress">
+
+                    <div
+                        class="progress-bar"
+                        id="model3Bar"
+                    ></div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+
+        <!-- MMSE -->
+
+        <div class="card">
+
+            <div class="mmse">
+
+                <div class="mmse-title">
+
+                    🧠 MMSE SCORE
+                    (Multimodal Feature)
+
+                </div>
+
+                <div>
+
+                    <span
+                        class="mmse-score"
+                        id="mmseScore"
+                    >
+                        0
+                    </span>
+
+                    <span class="mmse-max">
+                        / 30
+                    </span>
+
+                </div>
+
+                <div
+                    class="mmse-percent"
+                    id="mmsePercent"
+                >
+                    0%
+                </div>
+
+            </div>
+
+        </div>
+
+
+
+        <!-- QWEN -->
+
+        <div class="card">
+
+            <div class="section-title">
+
+                🤖 AI EXPLANATION — QWEN
+
+            </div>
+
+            <div
+                class="explanation"
+                id="explanation"
+            >
+
+                Waiting for analysis...
+
+            </div>
+
+        </div>
+
+
+    </div>
+
+
+</div>
+
+
+<script>
+
+    const imageInput =
+        document.getElementById(
+            "imageInput"
+        );
+
+    const fileName =
+        document.getElementById(
+            "fileName"
+        );
+
+    const preview =
+        document.getElementById(
+            "preview"
+        );
+
+    const analyzeBtn =
+        document.getElementById(
+            "analyzeBtn"
+        );
+
+
+    imageInput.addEventListener(
+        "change",
+        function() {
+
+            const file =
+                this.files[0];
+
+            if (!file) {
+
+                return;
+
+            }
+
+
+            fileName.textContent =
+                file.name;
+
+
+            preview.src =
+                URL.createObjectURL(file);
+
+            preview.style.display =
+                "block";
+
+
+            analyzeBtn.disabled =
+                false;
+
+        }
+    );
+
+
+
+    analyzeBtn.addEventListener(
+        "click",
+        async function() {
+
+            const file =
+                imageInput.files[0];
+
+            if (!file) {
+
+                alert(
+                    "Please select an image."
+                );
+
+                return;
+
+            }
+
+
+            analyzeBtn.disabled =
+                true;
+
+            document.getElementById(
+                "loading"
+            ).style.display =
+                "block";
+
+
+            const formData =
+                new FormData();
+
+            formData.append(
+                "image",
+                file
+            );
+
+
+            try {
+
+                const response =
+                    await fetch(
+                        "/analyze",
+                        {
+                            method: "POST",
+                            body: formData
+                        }
+                    );
+
+
+                const data =
+                    await response.json();
+
+
+                if (!data.success) {
+
+                    alert(
+                        data.error
+                    );
+
+                    return;
+
+                }
+
+
+                // Results section
+
+                document.getElementById(
+                    "results"
+                ).style.display =
+                    "block";
+
+
+                // MobileNet
+
+                document.getElementById(
+                    "mobilenetValue"
+                ).textContent =
+                    data.models[
+                        "MobileNetV3-Small"
+                    ] + "%";
+
+
+                document.getElementById(
+                    "mobilenetBar"
+                ).style.width =
+                    data.models[
+                        "MobileNetV3-Small"
+                    ] + "%";
+
+
+                // LightAlzNet
+
+                document.getElementById(
+                    "lightalzValue"
+                ).textContent =
+                    data.models[
+                        "LightAlzNet"
+                    ] + "%";
+
+
+                document.getElementById(
+                    "lightalzBar"
+                ).style.width =
+                    data.models[
+                        "LightAlzNet"
+                    ] + "%";
+
+
+                // Model 3
+
+                document.getElementById(
+                    "model3Value"
+                ).textContent =
+                    data.models[
+                        "Model 3"
+                    ] + "%";
+
+
+                document.getElementById(
+                    "model3Bar"
+                ).style.width =
+                    data.models[
+                        "Model 3"
+                    ] + "%";
+
+
+                // MMSE
+
+                document.getElementById(
+                    "mmseScore"
+                ).textContent =
+                    data.mmse;
+
+
+                document.getElementById(
+                    "mmsePercent"
+                ).textContent =
+                    data.mmse_percentage
+                    + "%";
+
+
+                // Qwen explanation
+
+                document.getElementById(
+                    "explanation"
+                ).textContent =
+                    data.explanation;
+
+
+            }
+
+            catch(error) {
+
+                console.error(error);
+
+                alert(
+                    "An error occurred during analysis."
+                );
+
+            }
+
+            finally {
+
+                analyzeBtn.disabled =
+                    false;
+
+                document.getElementById(
+                    "loading"
+                ).style.display =
+                    "none";
+
+            }
+
+        }
+    );
+
+</script>
+
+
+</body>
+
+</html>
