@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 import os
+import uuid
 
 import torch
 import torch.nn as nn
@@ -22,12 +23,11 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 
 # ============================================================
-# CONFIGURATION
+# CONFIGURATION CPU
 # ============================================================
 
 DEVICE = torch.device("cpu")
 
-# IMPORTANT :
 # Render Free possède des ressources CPU limitées.
 torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
@@ -101,7 +101,7 @@ print("=" * 60)
 
 def predict_image(image_path):
 
-    print("=== ANALYSIS STARTED ===")
+    print(">>> ANALYSIS START")
 
     # --------------------------------------------------------
     # Load image
@@ -109,39 +109,48 @@ def predict_image(image_path):
 
     image = Image.open(image_path).convert("RGB")
 
-    print("✓ Image loaded")
+    print(
+        ">>> Image loaded:",
+        image.size
+    )
 
     # --------------------------------------------------------
     # Transform
     # --------------------------------------------------------
 
-    image_tensor = transform(image).unsqueeze(0)
+    image_tensor = transform(image)
 
-    print("✓ Image transformed")
+    print(">>> Transform done")
+
+    # Add batch dimension
+    image_tensor = image_tensor.unsqueeze(0)
 
     # --------------------------------------------------------
-    # CPU inference
+    # Inference
     # --------------------------------------------------------
+
+    print(">>> Starting inference")
 
     with torch.inference_mode():
 
-        print(">>> MobileNet inference started")
-
         outputs = model(image_tensor)
 
-        print(">>> MobileNet inference finished")
+        print(">>> Model inference done")
 
         probabilities = torch.softmax(
             outputs,
             dim=1
-        )[0]
+        )
+
+    print(">>> Softmax done")
 
     # --------------------------------------------------------
     # Prediction
     # --------------------------------------------------------
 
     predicted_index = torch.argmax(
-        probabilities
+        probabilities,
+        dim=1
     ).item()
 
     predicted_class = CLASS_NAMES[
@@ -149,7 +158,7 @@ def predict_image(image_path):
     ]
 
     predicted_probability = (
-        probabilities[predicted_index].item()
+        probabilities[0, predicted_index].item()
         * 100
     )
 
@@ -162,17 +171,23 @@ def predict_image(image_path):
     for i, class_name in enumerate(CLASS_NAMES):
 
         results[class_name] = round(
-            probabilities[i].item() * 100,
+            probabilities[0, i].item() * 100,
             2
         )
 
     print(
-        "Prediction:",
-        predicted_class,
-        f"({predicted_probability:.2f}%)"
+        ">>> ANALYSIS COMPLETE"
     )
 
-    print("=== ANALYSIS FINISHED ===")
+    print(
+        ">>> Prediction:",
+        predicted_class
+    )
+
+    print(
+        ">>> Confidence:",
+        f"{predicted_probability:.2f}%"
+    )
 
     return (
         predicted_class,
@@ -200,13 +215,21 @@ def home():
 @app.route("/analyze", methods=["POST"])
 def analyze():
 
+    filepath = None
+
     try:
+
+        print("=" * 60)
+        print("NEW ANALYSIS REQUEST")
+        print("=" * 60)
 
         # ----------------------------------------------------
         # Check image
         # ----------------------------------------------------
 
         if "image" not in request.files:
+
+            print("ERROR: No image uploaded")
 
             return jsonify({
                 "success": False,
@@ -217,23 +240,41 @@ def analyze():
 
         if file.filename == "":
 
+            print("ERROR: No image selected")
+
             return jsonify({
                 "success": False,
                 "error": "No image selected."
             }), 400
 
         # ----------------------------------------------------
-        # Save image
+        # Generate safe filename
         # ----------------------------------------------------
+
+        extension = os.path.splitext(
+            file.filename
+        )[1].lower()
+
+        filename = (
+            uuid.uuid4().hex +
+            extension
+        )
 
         filepath = os.path.join(
             app.config["UPLOAD_FOLDER"],
-            file.filename
+            filename
         )
+
+        # ----------------------------------------------------
+        # Save image
+        # ----------------------------------------------------
 
         file.save(filepath)
 
-        print("✓ Image saved:", filepath)
+        print(
+            "✓ Image saved:",
+            filepath
+        )
 
         # ----------------------------------------------------
         # Prediction
@@ -262,13 +303,17 @@ def analyze():
         # Response
         # ----------------------------------------------------
 
-        return jsonify({
+        response = {
 
             "success": True,
 
             "prediction": {
-                "class": predicted_class,
-                "confidence": predicted_probability
+
+                "class":
+                    predicted_class,
+
+                "confidence":
+                    predicted_probability
             },
 
             "models": {
@@ -294,14 +339,28 @@ def analyze():
 
             "explanation":
                 explanation
-        })
+        }
+
+        print("✓ JSON response ready")
+
+        return jsonify(response)
 
     except Exception as e:
 
         print("=" * 60)
         print("ANALYSIS ERROR")
         print("=" * 60)
-        print(repr(e))
+
+        print(
+            "Error type:",
+            type(e).__name__
+        )
+
+        print(
+            "Error:",
+            str(e)
+        )
+
         print("=" * 60)
 
         return jsonify({
@@ -313,6 +372,29 @@ def analyze():
 
         }), 500
 
+    finally:
+
+        # ----------------------------------------------------
+        # Delete uploaded image
+        # ----------------------------------------------------
+
+        if filepath and os.path.exists(filepath):
+
+            try:
+
+                os.remove(filepath)
+
+                print(
+                    "✓ Temporary image deleted"
+                )
+
+            except Exception as cleanup_error:
+
+                print(
+                    "Cleanup warning:",
+                    cleanup_error
+                )
+
 
 # ============================================================
 # LOCAL SERVER
@@ -320,7 +402,13 @@ def analyze():
 
 if __name__ == "__main__":
 
+    print("=" * 60)
     print("NEURO AI ANALYSIS - PFE PROTOTYPE")
+    print("=" * 60)
+
+    print(
+        "Server: http://127.0.0.1:5000"
+    )
 
     app.run(
         host="127.0.0.1",
